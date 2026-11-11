@@ -1,0 +1,201 @@
+name: Stage verified Windows installer release
+
+"on":
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Windows installer build run ID
+        required: true
+        type: string
+      validation_run_id:
+        description: Successful clean-install validation run ID for that build
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: loom-windows-draft-release-v0.1.0
+  cancel-in-progress: false
+
+jobs:
+  stage-draft-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      GH_PROMPT_DISABLED: "1"
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
+      RELEASE_TAG: v0.1.0
+    steps:
+      - name: Verify successful runs and the existing draft target
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+
+          repo = os.environ['GH_REPO']
+          build_id = os.environ['BUILD_RUN_ID']
+          validation_id = os.environ['VALIDATION_RUN_ID']
+          if not re.fullmatch(r'\d+', build_id) or not re.fullmatch(r'\d+', validation_id):
+              raise SystemExit('Both run IDs must be numeric.')
+          build = api(f'repos/{repo}/actions/runs/{build_id}')
+          validation = api(f'repos/{repo}/actions/runs/{validation_id}')
+          expected = ((build, '.github/workflows/windows-installer.yml'),
+                      (validation, '.github/workflows/verify-windows-installer.yml'))
+          for run, path in expected:
+              if run['status'] != 'completed' or run['conclusion'] != 'success':
+                  raise SystemExit(f'Run {run["id"]} has not completed successfully.')
+              if run.get('path', '').split('@')[0] != path:
+                  raise SystemExit(f'Run {run["id"]} is not the expected workflow.')
+              if run['repository']['full_name'] != repo:
+                  raise SystemExit('Run repository does not match this repository.')
+          sha = build['head_sha']
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('Invalid build commit SHA.')
+          releases = api(f'repos/{repo}/releases?per_page=100')
+          matches = [release for release in releases if release['tag_name'] == os.environ['RELEASE_TAG']]
+          if len(matches) != 1 or not matches[0]['draft']:
+              raise SystemExit('Create the existing v0.1.0 draft release before running this workflow.')
+          release = matches[0]
+          if release['target_commitish'] != sha:
+              raise SystemExit('The draft release target must be the exact successful build commit SHA.')
+          metadata = {'build_sha': sha, 'build_run_id': build_id,
+                      'validation_run_id': validation_id, 'build_run_url': build['html_url'],
+                      'validation_run_url': validation['html_url'], 'release_id': release['id']}
+          path = Path(os.environ['RUNNER_TEMP']) / 'loom-release-run-metadata.json'
+          path.write_text(json.dumps(metadata), encoding='utf-8')
+          print(f'Validated build {build_id}, clean-install run {validation_id}, and draft target {sha}.')
+          PY
+
+      - name: Download the successful Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: LoomStudio-Windows-x64
+          path: ${{ runner.temp }}/loom-build-output
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Download the clean-install validation evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: LoomStudio-installer-validation
+          path: ${{ runner.temp }}/loom-validation-output
+          run-id: ${{ inputs.validation_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Validate evidence, hash files, and upload to the draft only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, shutil, subprocess
+          from pathlib import Path
+
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+
+          def sha256(path):
+              digest = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b''):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          temporary = Path(os.environ['RUNNER_TEMP'])
+          metadata = json.loads((temporary / 'loom-release-run-metadata.json').read_text())
+          build_root = temporary / 'loom-build-output'
+          validation_root = temporary / 'loom-validation-output'
+          summaries = list(validation_root.rglob('validation-summary.json'))
+          if len(summaries) != 1:
+              raise SystemExit('Expected one clean-install validation summary.')
+          summary = json.loads(summaries[0].read_text(encoding='utf-8-sig'))
+          if str(summary.get('build_run_id')) != metadata['build_run_id']:
+              raise SystemExit('The validation summary belongs to a different build.')
+          for phase in ('installation', 'installed_application_self_test', 'ffmpeg', 'ffprobe', 'uninstall'):
+              if summary.get(phase) != 'passed':
+                  raise SystemExit(f'Clean-install validation did not pass: {phase}.')
+          if summary.get('personal_data_retained') is not True:
+              raise SystemExit('Uninstall did not verify personal-data retention.')
+          setups = list(build_root.rglob('LoomStudio-Setup.exe'))
+          if len(setups) != 1:
+              raise SystemExit('Expected exactly one compiled Windows installer.')
+          setup = setups[0]
+          bins = sorted(path for path in setup.parent.glob('LoomStudio-Setup-*.bin')
+                        if re.fullmatch(r'LoomStudio-Setup-\d+[a-z]?\.bin', path.name))
+          if not bins:
+              raise SystemExit('The disk-spanned Windows installer payload is missing.')
+          output = temporary / 'loom-release-assets'
+          output.mkdir()
+          for source in [setup, *bins]:
+              if not 0 < source.stat().st_size < 2 * 1024 ** 3:
+                  raise SystemExit(f'{source.name} is empty or exceeds the GitHub per-asset size limit.')
+              shutil.copy2(source, output / source.name)
+          shutil.copy2(summaries[0], output / 'validation-summary.json')
+          third_party = list(build_root.rglob('THIRD_PARTY.md'))
+          if len(third_party) != 1:
+              raise SystemExit('Expected the bundled-component notices.')
+          shutil.copy2(third_party[0], output / 'THIRD_PARTY.md')
+          tool_root = third_party[0].parent / 'tools'
+          for path in sorted(tool_root.iterdir()):
+              if not path.is_file():
+                  continue
+              if path.name.upper().startswith(('LICENSE', 'README')):
+                  shutil.copy2(path, output / ('FFmpeg-' + path.name))
+              elif path.name in {'ffmpeg.sha256', 'ffmpeg-version.txt'}:
+                  shutil.copy2(path, output / path.name)
+          records = [{'filename': path.name, 'size': path.stat().st_size, 'sha256': sha256(path)}
+                     for path in sorted(output.iterdir())]
+          checksum_file = output / 'SHA256SUMS.txt'
+          checksum_file.write_text(''.join(f'{item["sha256"]}  {item["filename"]}\n' for item in records), encoding='utf-8')
+          records.append({'filename': checksum_file.name, 'size': checksum_file.stat().st_size,
+                          'sha256': sha256(checksum_file)})
+          repo = os.environ['GH_REPO']
+          tag = os.environ['RELEASE_TAG']
+          release_id = metadata['release_id']
+          release = api(f'repos/{repo}/releases/{release_id}')
+          if not release['draft'] or release['target_commitish'] != metadata['build_sha']:
+              raise SystemExit('The release is no longer the expected draft. No files were uploaded.')
+          existing = api(f'repos/{repo}/releases/{release_id}/assets?per_page=100')
+          expected_names = {item['filename'] for item in records}
+          if any(asset['name'] not in expected_names for asset in existing):
+              raise SystemExit('Draft contains unrelated assets; review it before staging this installer.')
+          for item in records:
+              path = output / item['filename']
+              subprocess.run(['gh', 'release', 'upload', tag, str(path), '--clobber'], check=True)
+          release = api(f'repos/{repo}/releases/{release_id}')
+          if not release['draft']:
+              raise SystemExit('Release was unexpectedly published during staging.')
+          uploaded = api(f'repos/{repo}/releases/{release_id}/assets?per_page=100')
+          assets = {asset['name']: asset for asset in uploaded}
+          for item in records:
+              asset = assets.get(item['filename'])
+              if asset is None or asset['size'] != item['size']:
+                  raise SystemExit(f'Uploaded asset verification failed: {item["filename"]}.')
+              if asset.get('digest') and asset['digest'] != 'sha256:' + item['sha256']:
+                  raise SystemExit(f'Uploaded asset checksum mismatch: {item["filename"]}.')
+              item['url'] = asset['browser_download_url']
+          manifest = {**metadata, 'release_tag': tag, 'is_draft': True, 'files': records}
+          manifest_path = temporary / 'loom-release-manifest.json'
+          manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+          print('RELEASE_MANIFEST_JSON=' + json.dumps(manifest, separators=(',', ':')))
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as handle:
+              handle.write('## Verified Windows installer staged in draft release\n\n')
+              handle.write(f'Build: {metadata["build_run_url"]}\n\nValidation: {metadata["validation_run_url"]}\n\n')
+              handle.write('The release remains a draft. Review the uploaded files before publishing.\n')
+          PY
+
+      - name: Upload the compact release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoomStudio-release-manifest
+          path: ${{ runner.temp }}/loom-release-manifest.json
+          if-no-files-found: error
+          retention-days: 14
