@@ -1,0 +1,17 @@
+Loom Studio is free software, distributed under the GNU General Public License,
+version 3 or (at your option) any later version. The full GPL version 3 text is
+provided in LICENSE.
+
+You may redistribute and modify this program under those terms. This program is
+distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for details.
+
+Third-party components retain their own copyright and license notices. In
+particular, the optional packaged Windows distribution includes GPL-licensed
+Piper TTS and separately invoked FFmpeg tools. See packaging/THIRD_PARTY.md and
+the notices retained in the built application. Binary distributors must satisfy
+all applicable license and corresponding-source requirements.
+
+User-selected voice, language, image and video models are not licensed by this
+application's GPL notice. Their licenses remain with their respective creators.

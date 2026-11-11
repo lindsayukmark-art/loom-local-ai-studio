@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#111613">
+  <meta name="description" content="Download the Loom Local AI Studio source project and Windows build instructions. Local models, private memory, and creative tools on your machine.">
+  <title>Download Loom — Local AI Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23b8e5b0'/%3E%3Cpath d='M12 10v20h16M20 10v12h8' fill='none' stroke='%23121615' stroke-width='4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/download.css">
+  <script src="/static/download.js" defer></script>
+</head>
+<body class="download-page">
+  <a class="skip-link" href="#downloads">Skip to downloads</a>
+  <header class="download-header">
+    <a class="download-brand" href="/" aria-label="Loom studio"><svg aria-hidden="true" viewBox="0 0 32 32"><path d="M7 5v22h18M16 5v13h9"/></svg><span>loom<span class="mint">.</span></span></a>
+    <nav aria-label="Download page navigation"><a class="header-link" href="#setup">Getting started</a><a class="studio-link" href="/">Open studio <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a></nav>
+  </header>
+  <main>
+    <section class="download-hero" aria-labelledby="download-heading">
+      <div class="hero-copy"><p class="eyebrow"><span aria-hidden="true"></span>LOOM LOCAL AI STUDIO</p><h1 id="download-heading">Your studio.<br>On your machine<span class="mint">.</span></h1><p class="hero-description">A little space for big ideas. Create, edit, and work with a team of agents — using local tools and the models you choose.</p><div class="hero-meta"><span class="local-pill"><span class="status-dot" aria-hidden="true"></span>Built for offline work</span><span class="version" id="version-label">Version —</span></div></div>
+      <div class="hero-object" aria-hidden="true"><span class="orbit orbit-a"></span><span class="orbit orbit-b"></span><span class="orbit orbit-c"></span><span class="object-core"><svg viewBox="0 0 32 32"><path d="M7 5v22h18M16 5v13h9"/></svg></span><span class="object-point point-a"></span><span class="object-point point-b"></span><span class="object-caption">GOOD THINGS START SOMEWHERE.</span></div>
+    </section>
+
+    <section id="downloads" class="downloads-section" aria-labelledby="files-heading">
+      <div class="section-heading"><div><p class="eyebrow">TAKE LOOM WITH YOU</p><h2 id="files-heading">Choose your starting point.</h2></div><span class="section-note">Local files. No account needed.</span></div>
+      <p id="download-status" class="download-status" role="alert" aria-live="polite">Checking available download files…</p>
+      <div class="download-grid">
+        <article class="download-card source-card" aria-labelledby="source-heading">
+          <div class="card-top"><span class="card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 20"/></svg></span><span class="card-tag">SOURCE PROJECT</span></div>
+          <h3 id="source-heading">Build your own Loom.</h3><p class="card-description">The complete app source, tests, and Windows installer build files. Start from the code and make it your own.</p>
+          <ul class="file-includes"><li>Local agents, memory, and creative workflows</li><li>Image, video, audio, voice, and OBS tools</li><li>Desktop shell and Windows build instructions</li></ul>
+          <div class="card-bottom"><p id="source-details" class="file-details">Checking source archive…</p><a id="source-download" class="download-button" href="#" download hidden><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/></svg>Download source ZIP <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a><p class="card-footnote">Source code, rather than a Windows app installer. AI model weights are supplied separately.</p></div>
+        </article>
+        <article class="download-card windows-card" aria-labelledby="windows-heading">
+          <div class="card-top"><span class="card-icon windows-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 5 8-1v7H3Zm10-1 8-1v8h-8ZM3 13h8v7l-8-1Zm10 0h8v8l-8-1Z"/></svg></span><span id="installer-badge" class="card-tag pending-tag">BUILD PENDING</span></div>
+          <h3 id="windows-heading">Windows desktop app.</h3><p class="card-description">A native window for your local workspace, designed for a simple installer launch on Windows 10 or 11.</p>
+          <div class="installer-status"><span class="pending-dot" aria-hidden="true"></span><div><strong id="installer-state">Installer not available yet</strong><p id="installer-pending">The compiled Windows installer still needs to be built and tested on Windows. No install-ready .exe is included in this release.</p></div></div>
+          <div class="card-bottom"><a id="installer-download" class="download-button" href="#" download hidden>Download Windows installer <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a><a id="windows-guide-link" class="secondary-button" href="/api/downloads/windows-guide/file" download>Get Windows build guide <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a><p class="card-footnote">The source project includes the installer script and a Windows build workflow.</p></div>
+        </article>
+      </div>
+      <details class="checksum-panel"><summary><span>Verify your source download</span><span class="checksum-label">SHA-256 <span aria-hidden="true">+</span></span></summary><div class="checksum-content"><p>Compare this checksum with the downloaded ZIP to verify that the file is complete.</p><code id="source-checksum">Checksum availability is being checked.</code><a id="checksum-download" class="text-link" href="#" download hidden>Download checksum file <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a></div></details>
+    </section>
+
+    <section id="setup" class="setup-section" aria-labelledby="setup-heading">
+      <div class="section-heading"><div><p class="eyebrow">A FEW THINGS TO KNOW</p><h2 id="setup-heading">Make room for your ideas.</h2></div><a id="readme-link" class="text-link" href="/api/downloads/readme/file" download>Read the full setup guide <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a></div>
+      <div class="setup-grid"><article class="setup-item"><span class="step-number">01</span><h3>Get the app running.</h3><p>Use the source project with Python, or produce a Windows installer using the included build instructions. The installer is a separate build step.</p></article><article class="setup-item"><span class="step-number">02</span><h3>Bring your local models.</h3><p>Connect an installed Ollama text model and select local image, video, or Piper voice files in Settings. Large AI model weights are not part of this download.</p></article><article class="setup-item"><span class="step-number">03</span><h3>Keep creating offline.</h3><p>Once the app, packages, and models are on your computer, work without cloud inference. Your projects, preferences, and feedback stay on your machine.</p></article></div>
+      <div class="hardware-note"><span class="hardware-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 7h10v10H7ZM3 8h4m-4 8h4m10-8h4m-4 8h4M8 3v4m8-4v4M8 17v4m8-4v4M10 10h4v4h-4Z"/></svg></span><div><h3>A practical start for your PC.</h3><p>For your RTX 3060 and 32 GB RAM, start with a modest quantized text model and Stable Diffusion 1.5. Model fit and speed depend on your card’s VRAM. Video generation needs more resources.</p></div></div>
+      <p class="release-note">This release learns saved preferences and task routing from feedback. It does not automatically retrain the large models. Sung-song generation and neural voice cloning are not included.</p>
+    </section>
+  </main>
+  <footer class="download-footer"><span>LOOM LOCAL AI STUDIO</span><span>Your machine. Your imagination.</span><a href="/">Back to the studio <svg class="link-arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m7 17 10-10M7 7h10v10"/></svg></a></footer>
+</body>
+</html>

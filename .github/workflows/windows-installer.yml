@@ -1,0 +1,85 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Find project directory
+        shell: pwsh
+        run: |
+          $root = if (Test-Path 'desktop.py') { (Get-Location).Path } elseif (Test-Path 'offline_studio/desktop.py') { Join-Path (Get-Location).Path 'offline_studio' } else { throw 'Loom project root not found.' }
+          "LOOM_PROJECT_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Prepare FFmpeg binaries and notices
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:LOOM_PROJECT_ROOT 'packaging/tools'
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          $archive = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials.zip'
+          $checksum = Join-Path $env:RUNNER_TEMP 'ffmpeg-essentials.sha256'
+          Invoke-WebRequest 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -OutFile $archive
+          Invoke-WebRequest 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256' -OutFile $checksum
+          $expected = ((Get-Content $checksum -Raw).Trim() -split '\s+')[0]
+          if ($expected -notmatch '^[a-fA-F0-9]{64}$') { throw 'Invalid FFmpeg checksum format.' }
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expected) { throw 'FFmpeg archive checksum mismatch.' }
+          Expand-Archive $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'ffmpeg')
+          Get-ChildItem (Join-Path $env:RUNNER_TEMP 'ffmpeg') -Recurse -Filter '*.exe' | Where-Object Name -in @('ffmpeg.exe','ffprobe.exe') | Copy-Item -Destination $tools
+          Get-ChildItem (Join-Path $env:RUNNER_TEMP 'ffmpeg') -Recurse -File | Where-Object Name -match '^(LICENSE|README)' | Copy-Item -Destination $tools
+          Copy-Item $checksum (Join-Path $tools 'ffmpeg.sha256')
+          & (Join-Path $tools 'ffmpeg.exe') -version | Out-File (Join-Path $tools 'ffmpeg-version.txt')
+          if ($LASTEXITCODE -ne 0) { throw 'Downloaded FFmpeg failed its version check.' }
+      - name: Bundle the Microsoft offline browser runtime
+        shell: pwsh
+        run: |
+          $runtime = Join-Path $env:LOOM_PROJECT_ROOT 'packaging/tools/MicrosoftEdgeWebView2RuntimeInstallerX64.exe'
+          Invoke-WebRequest 'https://go.microsoft.com/fwlink/?linkid=2124701' -OutFile $runtime
+          $signature = Get-AuthenticodeSignature $runtime
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') {
+            throw 'The offline WebView2 installer must have a valid Microsoft signature.'
+          }
+      - name: Build native app and installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress --limit-output
+            if ($LASTEXITCODE -ne 0) { throw 'Could not install Inno Setup.' }
+          }
+          & (Join-Path $env:LOOM_PROJECT_ROOT 'packaging/build-windows.ps1')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Smoke-test the packaged local server and assets
+        shell: pwsh
+        run: |
+          $env:LOOM_DATA_DIR = Join-Path $env:RUNNER_TEMP 'loom-desktop-smoke'
+          $executable = Join-Path $env:LOOM_PROJECT_ROOT 'dist/LoomStudio/LoomStudio.exe'
+          $process = Start-Process $executable -ArgumentList '--self-test' -PassThru
+          if (-not $process.WaitForExit(60000)) { $process.Kill(); throw 'Packaged application self-test timed out.' }
+          if ($process.ExitCode -ne 0) {
+            Get-Content (Join-Path $env:LOOM_DATA_DIR 'desktop.log')
+            throw "Packaged application self-test failed: $($process.ExitCode)"
+          }
+      - name: Upload installer and component notices
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoomStudio-Windows-x64
+          path: |
+            ${{ env.LOOM_PROJECT_ROOT }}/dist/installer/*
+            ${{ env.LOOM_PROJECT_ROOT }}/packaging/THIRD_PARTY.md
+            ${{ env.LOOM_PROJECT_ROOT }}/packaging/tools/*LICENSE*
+            ${{ env.LOOM_PROJECT_ROOT }}/packaging/tools/*README*
+            ${{ env.LOOM_PROJECT_ROOT }}/packaging/tools/ffmpeg.sha256
+            ${{ env.LOOM_PROJECT_ROOT }}/packaging/tools/ffmpeg-version.txt
+          if-no-files-found: error
+          retention-days: 14

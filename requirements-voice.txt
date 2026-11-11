@@ -1,0 +1,3 @@
+# Optional local text-to-speech engine; voice weights must be supplied locally.
+piper-tts==1.3.0
+onnxruntime>=1.19,<2

@@ -1,0 +1,9 @@
+# Known compatible local inference engines. PyTorch 2.6.0 / torchvision 0.21.0
+# are installed separately using the official CUDA 12.6 wheel index.
+diffusers==0.35.1
+transformers==4.56.2
+accelerate==1.10.1
+safetensors==0.6.2
+sentencepiece==0.2.1
+protobuf>=5,<7
+scipy>=1.13,<2
