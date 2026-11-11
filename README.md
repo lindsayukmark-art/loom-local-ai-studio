@@ -2,7 +2,7 @@
 
 A local desktop creation studio for Windows, with specialist workflows for tasks, code, images, video, sound, voices, small games, and transparent OBS animations. It keeps projects, feedback, and memory on your machine. There are no cloud inference providers or runtime model downloads.
 
-**Delivery status:** runnable source and a Windows installer build are included. A compiled Windows installer is **not** included in this source download. This project was developed and tested on Linux; Windows packaging and real model inference still need testing on the target PC. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) for the Windows build and installation process.
+**Delivery status:** the Windows preview installer has been compiled and has passed automated installation, installed-app startup, bundled media-tool, and uninstall checks on Windows. Download the installer separately from the [Windows release](https://github.com/lindsayukmark-art/loom-local-ai-studio/releases/tag/v0.1.0). This source download contains code and build files, rather than the installer itself. Interactive desktop use and actual model inference still need testing on the target PC. See [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md).
 
 ![Studio interface](screenshots/studio.png)
 
@@ -30,13 +30,13 @@ RAW camera formats and every possible photo codec are not supported. JPEG/BMP fl
 
 ## Windows desktop installation
 
-The app's **Downloads** link opens `/download`, with the source ZIP, its SHA-256 checksum, and setup guides. These are real local downloads. The page clearly marks the compiled Windows installer as pending until an installer distribution is supplied; no public website is deployed. Source bundles exclude personal media, memory, settings, model files, and caches.
+The app's **Downloads** link opens `/download`, with the source ZIP, its SHA-256 checksum, and setup guides. These are real local downloads. The [hosted download page](https://loom-local-ai-download.lindsayukmark.chatgpt.site) also offers the Windows release. Source bundles exclude personal media, memory, settings, model files, and caches.
 
-Once a Windows build has been produced, keep `LoomStudio-Setup.exe` together with its numbered `.bin` companions and launch Setup. It installs per user, creates shortcuts, and opens a native desktop window. Python is bundled. GPU inference libraries, FFmpeg, Piper, and the offline WebView2 installer are included by the default build. User-selected diffusion and voice weights and Ollama's text model files are separate.
+Download `LoomStudio-Setup.exe` and both numbered `.bin` companions into one folder, then launch Setup. It installs per user, creates shortcuts, and opens a native desktop window. Python is bundled. GPU inference libraries, FFmpeg, Piper, and the offline WebView2 installer are included. User-selected diffusion and voice weights and Ollama's text model files are separate.
 
 The full GPU payload is large. One installer launch does not mean that several gigabytes of neural model weights are already included. Model locations can be set in the app's Settings; missing engines and models are reported explicitly.
 
-Builds can be produced on Windows with `packaging/build-windows.ps1`, or using the included GitHub Actions workflow after placing this source in a repository. The workflow must run successfully before there is an install-ready download. [Windows build details](INSTALL_WINDOWS.md).
+Builds can also be produced on Windows with `packaging/build-windows.ps1` or the included GitHub Actions workflows. [Windows build details](INSTALL_WINDOWS.md).
 
 ## Run from source
 
@@ -93,6 +93,6 @@ Games preview in an iframe sandbox without native desktop bridge access. Generat
 python -m unittest discover -s tests -v
 ```
 
-Tests cover API workflows, actual image/audio/video conversion, FFT checks for voice changes, measured noise reduction, decoded transparent WebM frames, learning persistence/corrections, game exports, and offline adapter configuration. Browser checks exercise jobs, media previews, feedback, settings, and mobile layout. Real Ollama/diffusion/Piper inference and Windows installer/CUDA execution require models and the target system and remain unverified here. Mocked model tests are not a substitute for those checks.
+Tests cover API workflows, actual image/audio/video conversion, FFT checks for voice changes, measured noise reduction, decoded transparent WebM frames, learning persistence/corrections, game exports, and offline adapter configuration. Browser checks exercise jobs, media previews, feedback, settings, and mobile layout. Automated Windows builds verify native imports, frozen app startup, silent installation into a path containing spaces, installed FFmpeg/FFprobe, uninstall, and personal-data retention. Real Ollama/diffusion/Piper model inference, interactive desktop use, and CUDA execution still require models and the target system. Mocked model tests are not a substitute for those checks.
 
 The application is GPL-3.0-or-later. Bundled engines, binaries, and model weights have their own notices; see [NOTICE](NOTICE), [LICENSE](LICENSE), and [third-party packaging notes](packaging/THIRD_PARTY.md).

@@ -1,14 +1,16 @@
 # Windows desktop installer
 
-The project includes a native Windows app and an installer build. This source
-checkout does **not** contain a compiled or Windows-tested Setup.exe. Build on
-Windows, or run the included GitHub Actions workflow to produce it. Building
-does not publish anything or upload model weights.
+The Windows preview installer is available separately from the
+[Windows release](https://github.com/lindsayukmark-art/loom-local-ai-studio/releases/tag/v0.1.0).
+Automated Windows checks passed compilation, silent installation, the installed
+app self-test, FFmpeg/FFprobe, uninstall, and user-data retention. This source
+checkout contains build files rather than Setup.exe. Interactive desktop use
+and model/GPU inference still need testing on your PC.
 
 ## Using a built installer
 
-1. Extract all installer files together, keeping every numbered `.bin` file next
-   to **LoomStudio-Setup.exe**. Run **LoomStudio-Setup.exe** on Windows 10/11 x64. It installs into your user
+1. Download **LoomStudio-Setup.exe** and both numbered `.bin` files into the same
+   folder. Run **LoomStudio-Setup.exe** on Windows 10/11 x64. It installs into your user
    account and creates Start menu and desktop shortcuts; no Python installation
    or terminal is needed. Open **Loom Studio**.
 2. Use the native **Models** menu to choose existing local image/video model
