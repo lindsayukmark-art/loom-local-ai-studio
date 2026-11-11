@@ -1,0 +1,160 @@
+name: Verify Windows installer
+
+"on":
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Completed build run containing LoomStudio-Windows-x64
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+    steps:
+      - name: Prepare isolated installation and validation logs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BUILD_RUN_ID -notmatch '^\d+$') { throw 'build_run_id must be a numeric GitHub Actions run ID.' }
+          $root = Join-Path $env:RUNNER_TEMP 'Loom Installer Verification'
+          if (Test-Path $root) { throw "The isolated test directory already exists: $root" }
+          $logs = Join-Path $env:RUNNER_TEMP 'loom-installer-validation-logs'
+          New-Item -ItemType Directory -Force $root,$logs | Out-Null
+          "LOOM_INSTALLER_TEST_ROOT=$root" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "LOOM_VALIDATION_LOG_DIR=$logs" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "Build run: $env:BUILD_RUN_ID" | Out-File (Join-Path $logs 'build-run.txt') -Encoding utf8
+
+      - name: Download the completed Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: LoomStudio-Windows-x64
+          path: ${{ runner.temp }}/loom-downloaded-installer
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Install, test installed binaries, and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          $logs = $env:LOOM_VALIDATION_LOG_DIR
+          $root = $env:LOOM_INSTALLER_TEST_ROOT
+          $installDirectory = Join-Path $root 'App With Spaces'
+          $dataDirectory = Join-Path $root 'User Data With Spaces'
+          $downloadDirectory = Join-Path $env:RUNNER_TEMP 'loom-downloaded-installer'
+
+          function Invoke-RecordedProcess {
+            param(
+              [string]$Executable,
+              [string[]]$ProcessArguments,
+              [string]$Label,
+              [int]$TimeoutSeconds
+            )
+            $record = [ordered]@{ phase = $Label; executable = $Executable; exit_code = $null; timed_out = $false }
+            $process = Start-Process -FilePath $Executable -ArgumentList $ProcessArguments -PassThru
+            if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+              $record.timed_out = $true
+              try { $process.Kill($true) } catch { Write-Warning "Could not terminate $Label after timeout." }
+              $record | ConvertTo-Json | Out-File (Join-Path $logs "$Label-result.json") -Encoding utf8
+              throw "$Label timed out after $TimeoutSeconds seconds."
+            }
+            $process.WaitForExit()
+            $process.Refresh()
+            $record.exit_code = $process.ExitCode
+            $record | ConvertTo-Json | Out-File (Join-Path $logs "$Label-result.json") -Encoding utf8
+            return [int]$process.ExitCode
+          }
+
+          try {
+            $setups = @(Get-ChildItem $downloadDirectory -Recurse -File -Filter 'LoomStudio-Setup.exe')
+            if ($setups.Count -ne 1) { throw "Expected exactly one LoomStudio-Setup.exe, found $($setups.Count)." }
+            $setup = $setups[0]
+            Get-ChildItem $setup.DirectoryName -File | Select-Object Name,Length |
+              ConvertTo-Json | Out-File (Join-Path $logs 'installer-files.json') -Encoding utf8
+            $installLog = Join-Path $logs 'install.log'
+            # Start-Process joins ArgumentList into a Windows command line.
+            # Quote Inno's /DIR and /LOG values explicitly so spaces survive.
+            $installArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',
+              '/RESTARTEXITCODE=3010', ('/DIR="' + $installDirectory + '"'), ('/LOG="' + $installLog + '"'))
+            $installExit = Invoke-RecordedProcess $setup.FullName $installArguments 'install' 600
+            if ($installExit -notin @(0,3010)) { throw "Installer failed with exit code $installExit." }
+            if ($installExit -eq 3010) { Write-Warning 'Installer requested a restart; continuing with actual installed-binary checks.' }
+            $executable = Join-Path $installDirectory 'LoomStudio.exe'
+            if (-not (Test-Path $executable)) { throw 'Setup did not install LoomStudio.exe in the requested directory.' }
+
+            New-Item -ItemType Directory -Force $dataDirectory | Out-Null
+            $sentinel = Join-Path $dataDirectory 'installer-validation-user-data.txt'
+            'Uninstall must preserve this application data.' | Out-File $sentinel -Encoding utf8
+            $env:LOOM_DATA_DIR = $dataDirectory
+            $selfTestExit = Invoke-RecordedProcess $executable @('--self-test') 'installed-self-test' 90
+            if ($selfTestExit -ne 0) { throw "The installed app self-test failed: $selfTestExit." }
+            $desktopLog = Join-Path $dataDirectory 'desktop.log'
+            if (-not (Test-Path $desktopLog)) { throw 'The installed app did not create its isolated desktop log.' }
+            if (-not (Select-String -Path $desktopLog -SimpleMatch 'Packaged application self-test passed' -Quiet)) {
+              throw 'The installed app exited without recording a completed self-test.'
+            }
+
+            foreach ($tool in @('ffmpeg','ffprobe')) {
+              $toolPath = Join-Path $installDirectory "_internal\bin\$tool.exe"
+              if (-not (Test-Path $toolPath)) { throw "The installed app is missing $tool.exe." }
+              $versionOutput = & $toolPath -version 2>&1
+              $toolExit = $LASTEXITCODE
+              $versionOutput | Out-File (Join-Path $logs "$tool-version.txt") -Encoding utf8
+              if ($toolExit -ne 0) { throw "The installed $tool.exe failed its version check: $toolExit." }
+            }
+
+            $uninstaller = Join-Path $installDirectory 'unins000.exe'
+            if (-not (Test-Path $uninstaller)) { throw 'The installation did not create its uninstaller.' }
+            $uninstallLog = Join-Path $logs 'uninstall.log'
+            $uninstallArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',
+              ('/LOG="' + $uninstallLog + '"'))
+            $uninstallExit = Invoke-RecordedProcess $uninstaller $uninstallArguments 'uninstall' 180
+            if ($uninstallExit -ne 0) { throw "Uninstall failed with exit code $uninstallExit." }
+            for ($attempt = 0; $attempt -lt 30 -and (Test-Path $executable); $attempt++) { Start-Sleep -Milliseconds 500 }
+            if (Test-Path $executable) { throw 'Uninstall left the installed application executable behind.' }
+            if (-not (Test-Path $sentinel)) { throw 'Uninstall removed the separate personal-data directory.' }
+            if (-not (Test-Path $desktopLog)) { throw 'Uninstall removed the isolated application log.' }
+
+            @{
+              build_run_id = $env:BUILD_RUN_ID
+              installation = 'passed'
+              installed_application_self_test = 'passed'
+              ffmpeg = 'passed'
+              ffprobe = 'passed'
+              uninstall = 'passed'
+              personal_data_retained = $true
+              verification_limit = 'No interactive WebView2 UI automation, GPU inference, or model-weight inference was performed.'
+            } | ConvertTo-Json | Out-File (Join-Path $logs 'validation-summary.json') -Encoding utf8
+            @('## Windows installer validation passed',
+              '',
+              '- Installed silently into a per-user folder containing spaces.',
+              '- Ran the installed app self-test and bundled FFmpeg/FFprobe.',
+              '- Uninstalled the app and confirmed personal data was retained.',
+              '',
+              'Interactive WebView2 UI, GPU inference, and actual model weights were not tested.') |
+              Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          } finally {
+            $desktopLog = Join-Path $dataDirectory 'desktop.log'
+            if (Test-Path $desktopLog) { Copy-Item $desktopLog (Join-Path $logs 'desktop.log') -Force }
+            Get-ChildItem $logs -File | Where-Object Name -in @('install.log','desktop.log','uninstall.log') | ForEach-Object {
+              Write-Host "Log: $($_.Name)"
+              Get-Content $_.FullName -Tail 80
+            }
+          }
+
+      - name: Upload installer validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoomStudio-installer-validation
+          path: ${{ runner.temp }}/loom-installer-validation-logs/*
+          if-no-files-found: warn
+          retention-days: 14
